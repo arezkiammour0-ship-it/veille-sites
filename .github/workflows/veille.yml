@@ -5,7 +5,7 @@ name: veille
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/30 * * * *"   # le cron GitHub est irrégulier : chaque run boucle ~5 h 50
     - cron: "17 6 1 * *"   # entretien mensuel : évite la mise en sommeil après 60 jours
   workflow_dispatch:
 
@@ -17,7 +17,7 @@ concurrency: veille
 jobs:
   veille:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 358
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +33,10 @@ jobs:
           VEILLE_URLS: ${{ secrets.VEILLE_URLS }}
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
-        run: bash veille.sh
+        # Boucle toutes les 5 min ; un seul run actif (concurrency), le suivant attend en file.
+        run: |
+          fin=$((SECONDS + 350*60))
+          while [ $SECONDS -lt $fin ]; do bash veille.sh; sleep 300; done
 
       - name: Etat suivant
         if: always()
