@@ -1,0 +1,53 @@
+# Surveillance externe des sites (remplace Kuma quand Hetzner s'arrête).
+# Liste des sites : secret VEILLE_URLS (une ligne "nom|url"), rien de sensible dans le dépôt.
+# Alerte Telegram uniquement au changement d'état (panne / rétabli).
+name: veille
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+    - cron: "17 6 1 * *"   # entretien mensuel : évite la mise en sommeil après 60 jours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: veille
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Etat precedent
+        uses: actions/cache/restore@v4
+        with:
+          path: etat.txt
+          key: etat-${{ github.run_id }}
+          restore-keys: etat-
+
+      - name: Controle
+        env:
+          VEILLE_URLS: ${{ secrets.VEILLE_URLS }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+        run: bash veille.sh
+
+      - name: Etat suivant
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: etat.txt
+          key: etat-${{ github.run_id }}
+
+      - name: Entretien mensuel
+        if: github.event.schedule == '17 6 1 * *'
+        run: |
+          git config user.name veille
+          git config user.email veille@users.noreply.github.com
+          date -u > entretien.txt
+          git add entretien.txt
+          git commit -m "entretien mensuel"
+          git push
